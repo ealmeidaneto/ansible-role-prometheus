@@ -1,0 +1,76 @@
+---
+# tasks file for prometheus
+
+- name: Create Prometheus user
+  user:
+    name: prometheus
+    comment: prometheus user
+    shell: /bin/false
+    state: present
+
+- name: Create folders for Prometheus
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: prometheus
+    group: prometheus
+  loop:
+    - /etc/prometheus
+    - /var/lib/prometheus
+
+- name: Download Prometheus binary
+  get_url:
+    url: https://github.com/prometheus/prometheus/releases/download/v{{prometheus_version}}/prometheus-{{prometheus_version}}.linux-amd64.tar.gz
+    dest: /tmp
+    mode: '0755'
+
+- name: Extract Prometheus binaries
+  unarchive:
+    src: /tmp/prometheus-{{prometheus_version}}.linux-amd64.tar.gz
+    dest: /tmp
+    remote_src: yes
+
+- name: Copy binaries to dest folder
+  copy:
+    src: /tmp/prometheus-{{prometheus_version}}.linux-amd64/{{item}}
+    dest: /usr/local/bin
+    owner: prometheus
+    group: prometheus
+    mode: '0755'
+    remote_src: yes
+  loop:
+    - prometheus
+    - promtool
+
+- name: Copy Prometheus folders
+  copy:
+    src: /tmp/prometheus-{{prometheus_version}}.linux-amd64/{{item}}
+    dest: /etc/prometheus
+    owner: prometheus
+    group: prometheus
+    mode: '0755'
+    remote_src: yes
+  loop:
+    - consoles
+    - console_libraries
+
+- name: Copy Prometheus config file
+  copy:
+    src: /tmp/prometheus-{{prometheus_version}}.linux-amd64/prometheus.yml
+    dest: /etc/prometheus
+    owner: prometheus
+    group: prometheus
+    mode: '0655'
+    remote_src: yes
+
+- name: Install Prometheus systemd unit file
+  template:
+    src: prometheus.service.j2
+    dest: /etc/systemd/system/prometheus.service
+
+- name: Start Prometheus
+  systemd:
+    name: prometheus
+    state: started
+    daemon_reload: yes
